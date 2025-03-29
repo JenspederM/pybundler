@@ -64,7 +64,17 @@ func BundleCmd() *cobra.Command {
 		Long:  `Bundle a Python project into a single executable file.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Implementation here
-			saveTemplate("main.go.tmpl", "main.go", nil)
+			output := cmd.Flag("output").Value.String()
+			if strings.TrimSpace(output) == "." {
+				output = ""
+			}
+			if strings.TrimSpace(output) == "" {
+				output = "dist"
+			}
+
+			saveTemplate("main.go.tmpl", fmt.Sprintf("%s/%s", output, "main.go"), nil)
+			saveTemplate("generate.go.tmpl", fmt.Sprintf("%s/%s", output, "generate/main.go"), nil)
+			saveTemplate("root.go.tmpl", fmt.Sprintf("%s/%s", output, "cmd/root.go"), nil)
 
 			fmt.Println("Bundle created successfully.")
 		},
@@ -72,7 +82,7 @@ func BundleCmd() *cobra.Command {
 
 	cmd.Flags().StringP("name", "n", "", "Name of the bundle")
 	cmd.Flags().StringP("version", "v", "", "Version of the bundle")
-	cmd.Flags().StringP("output", "o", "", "Output directory for the bundle")
+	cmd.Flags().StringP("output", "o", "dist", "Output directory for the bundle")
 
 	return cmd
 }
@@ -82,11 +92,13 @@ func saveTemplate(template string, output string, data map[string]interface{}) e
 		output = ""
 	}
 	if exist, err := exists(output); err != nil || !exist {
+		log.Warning("creating directory %s", output)
 		err := os.MkdirAll(output, os.ModePerm)
 		if err != nil {
 			return fmt.Errorf("creating directory: %v", err)
 		}
 	}
+
 	f, err := tmpl.RenderTemplate(template, data)
 	if err != nil {
 		return fmt.Errorf("rendering template: %v", err)
