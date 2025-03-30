@@ -33,7 +33,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		ep.AddPythonPath(requirements.GetExtractedPath())
-		pyArgs := []string{"-m", "py"}
+		pyArgs := []string{"-c", "import {{ .Name }}; {{ .Name }}.main()"}
 		pyArgs = append(pyArgs, args...)
 		pyCmd, err := ep.PythonCmd(pyArgs...)
 		if err != nil {
