@@ -1,0 +1,15 @@
+[project]
+name = "typer-cli"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "Jens Peder Meldgaard", email = "jenspederm@gmail.com" }]
+requires-python = ">=3.10"
+dependencies = ["typer>=0.15.2"]
+
+[project.scripts]
+typer-cli = "typer_cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
