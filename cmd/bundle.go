@@ -21,11 +21,14 @@ func BundleCmd() *cobra.Command {
 	cmd.Flags().StringP("path", "p", ".", "Path to the Python project")
 	cmd.Flags().StringP("output", "o", "dist", "Output directory for the bundle")
 	cmd.Flags().BoolP("overwrite", "w", false, "Overwrite existing files")
+	cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
 
 	cmd.Run = func(cmd *cobra.Command, args []string) {
 		// Implementation here
 		path := cmd.Flag("path").Value.String()
 		output := cmd.Flag("output").Value.String()
+		overwrite := cmd.Flag("overwrite").Value.String()
+		verbose := cmd.Flag("verbose").Value.String()
 
 		bo, err := bundle.NewBundleOptions(path, output)
 		cobra.CheckErr(err)
@@ -33,7 +36,7 @@ func BundleCmd() *cobra.Command {
 		if _, err := os.Stat(bo.Output); err == nil {
 			isEmpty, err := IsEmpty(bo.Output)
 			cobra.CheckErr(err)
-			if !isEmpty && cmd.Flag("overwrite").Value.String() == "false" {
+			if !isEmpty && overwrite == "false" {
 				fp := filepath.Join(bo.Output, "main.go")
 				fmt.Printf("File %s already exists. Use --overwrite to overwrite.\n", fp)
 				return
@@ -43,7 +46,7 @@ func BundleCmd() *cobra.Command {
 			err = os.MkdirAll(bo.Output, os.ModePerm)
 			cobra.CheckErr(err)
 		}
-		err = bundle.Run(bo)
+		err = bundle.Run(bo, verbose == "true")
 		if err != nil {
 			cobra.CheckErr(err)
 		}

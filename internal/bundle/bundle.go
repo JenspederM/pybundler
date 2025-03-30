@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func Run(bo *BundleOptions) error {
+func Run(bo *BundleOptions, verbose bool) error {
 	name := bo.PyProject.Project.Name
 	version := bo.PyProject.Project.Version
 
@@ -22,7 +22,7 @@ func Run(bo *BundleOptions) error {
 		"Scripts": bo.Scripts,
 	}
 
-	_, err := RunCmd(bo.Output, "go", "mod", "init", name)
+	_, err := RunCmd(bo.Output, verbose, "go", "mod", "init", name)
 	cobra.CheckErr(err)
 	err = SaveTemplate("main.go.tmpl", filepath.Join(bo.Output, "main.go"), data)
 	cobra.CheckErr(err)
@@ -36,20 +36,35 @@ func Run(bo *BundleOptions) error {
 	}
 	cobra.CheckErr(err)
 
-	_, err = RunCmd(bo.Output, "go", "mod", "tidy")
+	_, err = RunCmd(bo.Output, verbose, "go", "mod", "tidy")
 	cobra.CheckErr(err)
-	_, err = RunCmd(bo.Path, "uv", "build", "--wheel", "-o", bo.Output)
+	_, err = RunCmd(bo.Path, verbose, "uv", "build", "--wheel", "-o", bo.Output)
 	cobra.CheckErr(err)
-	pkgReqs, err := RunCmd(bo.Path, "uv", "export", "--no-emit-project", "--no-dev", "--no-hashes")
-	cobra.CheckErr(err)
-	whl := fmt.Sprintf("%s-%s-py3-none-any.whl", strings.ReplaceAll(name, "-", "_"), version)
-	requirements := bytes.Join([][]byte{[]byte(whl), pkgReqs}, []byte("\n"))
+	requirements := getRequirements(bo.Path, name, version, verbose)
 	err = os.WriteFile(filepath.Join(bo.Output, "requirements.txt"), requirements, 0644)
 	cobra.CheckErr(err)
-	_, err = RunCmd(bo.Output, "go", "generate", "./...")
+	_, err = RunCmd(bo.Output, verbose, "go", "generate", "./...")
 	cobra.CheckErr(err)
-	_, err = RunCmd(bo.Output, "go", "build", "-o", "main")
+	_, err = RunCmd(bo.Output, verbose, "go", "build", "-o", "main")
 	cobra.CheckErr(err)
 	log.Info("Bundle created successfully.")
 	return nil
+}
+
+func getRequirements(path string, name string, version string, verbose bool) []byte {
+	pkgReqs, err := RunCmd(path, verbose, "uv", "export", "--no-emit-project", "--no-dev", "--no-hashes")
+	cobra.CheckErr(err)
+	whl := fmt.Sprintf("%s-%s-py3-none-any.whl", strings.ReplaceAll(name, "-", "_"), version)
+	reqLines := bytes.Split(pkgReqs, []byte("\n"))
+	reqs := make([][]byte, 0)
+	for _, line := range reqLines {
+		if bytes.Contains(line, []byte("==")) || bytes.HasSuffix(line, []byte(".whl")) {
+			parts := bytes.Split(line, []byte("=="))
+			if len(parts) == 2 {
+				reqs = append(reqs, []byte(fmt.Sprintf("%s==%s", string(parts[0]), string(parts[1]))))
+			}
+		}
+	}
+	reqs = append(reqs, []byte(whl))
+	return bytes.Join(reqs, []byte("\n"))
 }

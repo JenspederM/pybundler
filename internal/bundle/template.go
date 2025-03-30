@@ -24,7 +24,7 @@ func SaveTemplate(template string, output string, data map[string]interface{}) e
 			return fmt.Errorf("creating output directory: %v", err)
 		}
 	}
-	log.Infof("saving template %s to %s", template, output)
+	log.Infof("Saving template %s to %s", template, output)
 	if strings.TrimSpace(output) == "." {
 		output = ""
 	}
