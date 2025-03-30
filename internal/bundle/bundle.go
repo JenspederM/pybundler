@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/cloudflare/cfssl/log"
 	"github.com/spf13/cobra"
@@ -39,7 +40,7 @@ func Run(bo *BundleOptions) error {
 	cobra.CheckErr(err)
 	pkgReqs, err := RunCmd(bo.Path, "uv", "export", "--no-emit-project", "--no-dev", "--no-hashes")
 	cobra.CheckErr(err)
-	whl := fmt.Sprintf("%s-%s-py3-none-any.whl", name, version)
+	whl := fmt.Sprintf("%s-%s-py3-none-any.whl", strings.ReplaceAll(name, "-", "_"), version)
 	requirements := bytes.Join([][]byte{[]byte(whl), pkgReqs}, []byte("\n"))
 	err = os.WriteFile(fmt.Sprintf("%s/%s", bo.Output, "requirements.txt"), requirements, 0644)
 	cobra.CheckErr(err)
