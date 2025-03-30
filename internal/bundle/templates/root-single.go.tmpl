@@ -1,0 +1,71 @@
+/*
+Copyright © 2025 NAME HERE <EMAIL ADDRESS>
+*/
+package cmd
+
+import (
+	"os"
+	"path/filepath"
+
+	"{{ .Name }}/data"
+
+	"github.com/cloudflare/cfssl/log"
+	"github.com/kluctl/go-embed-python/embed_util"
+	"github.com/kluctl/go-embed-python/python"
+	"github.com/spf13/cobra"
+)
+
+// rootCmd represents the base command when called without any subcommands
+{{ range .Scripts }}
+var rootCmd = &cobra.Command{
+	Use:                "{{ .Name }}",
+	DisableFlagParsing: true,
+	Run: func(cmd *cobra.Command, args []string) {
+		tmpDir := os.TempDir()
+
+		ep, err := python.NewEmbeddedPythonWithTmpDir(filepath.Join(tmpDir, "{{ .Name }}"), true)
+		if err != nil {
+			panic(err)
+		}
+
+		requirements, err := embed_util.NewEmbeddedFilesWithTmpDir(data.Data, tmpDir+"{{ .Name }}-libs", true)
+		if err != nil {
+			panic(err)
+		}
+
+		ep.AddPythonPath(requirements.GetExtractedPath())
+		pyArgs := []string{"-c", "{{ .Command }}"}
+		pyArgs = append(pyArgs, args...)
+		pyCmd, err := ep.PythonCmd(pyArgs...)
+		if err != nil {
+			log.Fatalf("failed to create python command: %v", err)
+		}
+		pyCmd.Stdout = os.Stdout
+		pyCmd.Stderr = os.Stderr
+		err = pyCmd.Run()
+		if err != nil {
+			log.Fatalf("failed to run python command: %v", err)
+		}
+	},
+}
+{{ end }}
+
+// Execute adds all child commands to the root command and sets flags appropriately.
+// This is called by main.main(). It only needs to happen once to the rootCmd.
+func Execute() {
+	err := rootCmd.Execute()
+	if err != nil {
+		os.Exit(1)
+	}
+}
+
+func init() {
+	// Here you will define your flags and configuration settings.
+	// Cobra supports persistent flags, which, if defined here,
+	// will be global for your application.
+
+	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.pybundler.yaml)")
+
+	// Cobra also supports local flags, which will only run
+	// when this action is called directly.
+}

@@ -27,8 +27,14 @@ func Run(bo *BundleOptions) error {
 	cobra.CheckErr(err)
 	err = SaveTemplate("generate.go.tmpl", fmt.Sprintf("%s/%s", bo.Output, "generate/main.go"), data)
 	cobra.CheckErr(err)
-	err = SaveTemplate("root.go.tmpl", fmt.Sprintf("%s/%s", bo.Output, "cmd/root.go"), data)
+
+	if len(bo.Scripts) > 1 {
+		err = SaveTemplate("root.go.tmpl", fmt.Sprintf("%s/%s", bo.Output, "cmd/root.go"), data)
+	} else {
+		err = SaveTemplate("root-single.go.tmpl", fmt.Sprintf("%s/%s", bo.Output, "cmd/root.go"), data)
+	}
 	cobra.CheckErr(err)
+
 	_, err = RunCmd(bo.Output, "go", "mod", "tidy")
 	cobra.CheckErr(err)
 	_, err = RunCmd(bo.Path, "uv", "build", "--wheel", "-o", bo.Output)
