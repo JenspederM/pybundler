@@ -3,6 +3,7 @@ package bundle
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -10,15 +11,17 @@ import (
 )
 
 type Script struct {
+	Origin  string
 	Name    string
 	Command string
 	Module  string
 }
 
 type Project struct {
-	Name    string            `toml:"name"`
-	Version string            `toml:"version"`
-	Scripts map[string]string `toml:"scripts"`
+	Name       string            `toml:"name"`
+	Version    string            `toml:"version"`
+	Scripts    map[string]string `toml:"scripts"`
+	GuiScripts map[string]string `toml:"gui-scripts"`
 }
 
 type PyProject struct {
@@ -28,7 +31,7 @@ type PyProject struct {
 type BundleOptions struct {
 	Path      string
 	Output    string
-	PyProject PyProject
+	PyProject *PyProject
 	Scripts   []*Script
 }
 
@@ -43,54 +46,23 @@ func NewBundleOptions(path string, output string) (*BundleOptions, error) {
 		output = "dist"
 	}
 
-	if output[0] != '/' {
-		cwd, err := os.Getwd()
-		if err != nil {
-			cobra.CheckErr(fmt.Errorf("getting current working directory: %v", err))
-		}
-		output = fmt.Sprintf("%s/%s", cwd, output)
-	}
+	output = makePathAbsolute(output)
 
-	if _, err := os.Stat(fmt.Sprintf("%s/%s", path, "pyproject.toml")); err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("pyproject.toml not found in %s", path)
-		}
-	}
-
-	pt, err := os.ReadFile(fmt.Sprintf("%s/%s", path, "pyproject.toml"))
-	if err != nil {
-		return nil, fmt.Errorf("error reading pyproject.toml: %v", err)
-	}
-
-	var pyproject PyProject
-	_, err = toml.Decode(string(pt), &pyproject)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling pyproject.toml: %v", err)
-	}
-	if pyproject.Project.Name == "" {
-		return nil, fmt.Errorf("project name not found in pyproject.toml")
-	}
-	if pyproject.Project.Version == "" {
-		return nil, fmt.Errorf("project version not found in pyproject.toml")
-	}
-
-	scripts := make([]*Script, 0)
-	for k, v := range pyproject.Project.Scripts {
-		s, err := NewScript(k, v)
-		cobra.CheckErr(err)
-		if s == nil {
-			cobra.CheckErr(fmt.Errorf("script %s is nil", k))
-		}
-		scripts = append(scripts, s)
-	}
-	if len(scripts) == 0 {
-		cobra.CheckErr(fmt.Errorf("no scripts found in pyproject.toml"))
-	}
-
-	err = os.MkdirAll(output, os.ModePerm)
+	err := os.MkdirAll(output, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("creating output directory: %v", err)
 	}
+
+	pyproject, err := decodePyproject(path)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding pyproject.toml: %v", err)
+	}
+
+	scripts, err := collectScripts(*pyproject)
+	if err != nil {
+		return nil, fmt.Errorf("error collecting scripts: %v", err)
+	}
+
 	return &BundleOptions{
 		Path:      path,
 		Output:    output,
@@ -99,7 +71,7 @@ func NewBundleOptions(path string, output string) (*BundleOptions, error) {
 	}, nil
 }
 
-func NewScript(name string, entrypoint string) (*Script, error) {
+func NewScript(name string, entrypoint string, origin string) (*Script, error) {
 	_vals := strings.SplitN(entrypoint, ":", 2)
 	if len(_vals) < 2 {
 		return nil, fmt.Errorf("invalid script format: %s", entrypoint)
@@ -109,9 +81,99 @@ func NewScript(name string, entrypoint string) (*Script, error) {
 	nn := strings.TrimSpace(name)
 	cmd := fmt.Sprintf("import %s; %s.%s()", imp, imp, fun)
 	script := &Script{
-		Name:    strings.ReplaceAll(nn, "_", "-"),
+		Origin:  origin,
+		Name:    nn,
 		Command: cmd,
 		Module:  strings.ReplaceAll(nn, "-", "_"),
 	}
 	return script, nil
+}
+
+func makePathAbsolute(p string) string {
+	if p[0] != '/' {
+		cwd, err := os.Getwd()
+		if err != nil {
+			cobra.CheckErr(fmt.Errorf("getting current working directory: %v", err))
+		}
+		p = filepath.Join(cwd, p)
+	}
+	return p
+}
+
+func checkPyproject(p string) error {
+	if _, err := os.Stat(filepath.Join(p, "pyproject.toml")); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("pyproject.toml not found in %s", p)
+		}
+	}
+	return nil
+}
+
+func decodePyproject(p string) (*PyProject, error) {
+	if err := checkPyproject(p); err != nil {
+		return nil, err
+	}
+
+	fp := filepath.Join(p, "pyproject.toml")
+	pt, err := os.ReadFile(fp)
+	if err != nil {
+		return nil, fmt.Errorf("reading pyproject.toml from %s", fp)
+	}
+
+	var pyproject PyProject
+	_, err = toml.Decode(string(pt), &pyproject)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshalling pyproject.toml from %s", fp)
+	}
+	if pyproject.Project.Name == "" {
+		return nil, fmt.Errorf("project name not found in %s", fp)
+	}
+	if pyproject.Project.Version == "" {
+		return nil, fmt.Errorf("project version not found in %s", fp)
+	}
+	return &pyproject, nil
+}
+
+func collectScripts(pyproject PyProject) ([]*Script, error) {
+	scripts := make([]*Script, 0)
+	for k, v := range pyproject.Project.Scripts {
+		s, err := NewScript(k, v, "scripts")
+		if err != nil {
+			return nil, fmt.Errorf("error creating script '%s': %v", k, err)
+		}
+		if s == nil {
+			return nil, fmt.Errorf("script '%s' is nil", k)
+		}
+		scripts = append(scripts, s)
+	}
+	for k, v := range pyproject.Project.GuiScripts {
+		s, err := NewScript(k, v, "gui-scripts")
+		if err != nil {
+			return nil, fmt.Errorf("error creating gui script '%s': %v", k, err)
+		}
+		if s == nil {
+			return nil, fmt.Errorf("gui script '%s' is nil", k)
+		}
+		scripts = append(scripts, s)
+	}
+	scriptKeys := make(map[string][]*Script)
+	for _, s := range scripts {
+		scriptKeys[s.Name] = make([]*Script, 0)
+	}
+	for _, s := range scripts {
+		scriptKeys[s.Name] = append(scriptKeys[s.Name], s)
+	}
+	for k, v := range scriptKeys {
+		if len(v) > 1 {
+			occurrences := make([]string, 0)
+			for _, s := range v {
+				occurrences = append(occurrences, fmt.Sprintf("[project.%s]", s.Origin))
+			}
+			return nil, fmt.Errorf("script name '%s' found in multiple pyproject sections: %s", k, strings.Join(occurrences, ", "))
+		}
+	}
+	if len(scripts) == 0 {
+		return nil, fmt.Errorf("no scripts found in pyproject.toml")
+	}
+	return scripts, nil
 }

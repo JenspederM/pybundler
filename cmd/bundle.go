@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/cloudflare/cfssl/log"
 	"github.com/jenspederm/pybundler/internal/bundle"
@@ -29,11 +31,14 @@ func BundleCmd() *cobra.Command {
 		cobra.CheckErr(err)
 		log.Infof("Creating bundle for %s at %s", bo.Path, bo.Output)
 		if _, err := os.Stat(bo.Output); err == nil {
-			if cmd.Flag("overwrite").Value.String() == "false" {
-				fmt.Printf("File %s already exists. Use --overwrite to overwrite.\n", fmt.Sprintf("%s/%s", bo.Output, "main.go"))
+			isEmpty, err := IsEmpty(bo.Output)
+			cobra.CheckErr(err)
+			if !isEmpty && cmd.Flag("overwrite").Value.String() == "false" {
+				fp := filepath.Join(bo.Output, "main.go")
+				fmt.Printf("File %s already exists. Use --overwrite to overwrite.\n", fp)
 				return
 			}
-			err := os.RemoveAll(bo.Output)
+			err = os.RemoveAll(bo.Output)
 			cobra.CheckErr(err)
 			err = os.MkdirAll(bo.Output, os.ModePerm)
 			cobra.CheckErr(err)
@@ -46,4 +51,18 @@ func BundleCmd() *cobra.Command {
 	}
 
 	return cmd
+}
+
+func IsEmpty(name string) (bool, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	_, err = f.Readdirnames(1) // Or f.Readdir(1)
+	if err == io.EOF {
+		return true, nil
+	}
+	return false, err // Either not empty or error, suits both cases
 }

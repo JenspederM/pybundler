@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/cloudflare/cfssl/log"
@@ -23,15 +24,15 @@ func Run(bo *BundleOptions) error {
 
 	_, err := RunCmd(bo.Output, "go", "mod", "init", name)
 	cobra.CheckErr(err)
-	err = SaveTemplate("main.go.tmpl", fmt.Sprintf("%s/%s", bo.Output, "main.go"), data)
+	err = SaveTemplate("main.go.tmpl", filepath.Join(bo.Output, "main.go"), data)
 	cobra.CheckErr(err)
-	err = SaveTemplate("generate.go.tmpl", fmt.Sprintf("%s/%s", bo.Output, "generate/main.go"), data)
+	err = SaveTemplate("generate.go.tmpl", filepath.Join(bo.Output, "generate/main.go"), data)
 	cobra.CheckErr(err)
 
 	if len(bo.Scripts) > 1 {
-		err = SaveTemplate("root.go.tmpl", fmt.Sprintf("%s/%s", bo.Output, "cmd/root.go"), data)
+		err = SaveTemplate("root.go.tmpl", filepath.Join(bo.Output, "cmd/root.go"), data)
 	} else {
-		err = SaveTemplate("root-single.go.tmpl", fmt.Sprintf("%s/%s", bo.Output, "cmd/root.go"), data)
+		err = SaveTemplate("root-single.go.tmpl", filepath.Join(bo.Output, "cmd/root.go"), data)
 	}
 	cobra.CheckErr(err)
 
@@ -43,7 +44,7 @@ func Run(bo *BundleOptions) error {
 	cobra.CheckErr(err)
 	whl := fmt.Sprintf("%s-%s-py3-none-any.whl", strings.ReplaceAll(name, "-", "_"), version)
 	requirements := bytes.Join([][]byte{[]byte(whl), pkgReqs}, []byte("\n"))
-	err = os.WriteFile(fmt.Sprintf("%s/%s", bo.Output, "requirements.txt"), requirements, 0644)
+	err = os.WriteFile(filepath.Join(bo.Output, "requirements.txt"), requirements, 0644)
 	cobra.CheckErr(err)
 	_, err = RunCmd(bo.Output, "go", "generate", "./...")
 	cobra.CheckErr(err)
