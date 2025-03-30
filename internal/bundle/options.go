@@ -13,28 +13,37 @@ import (
 const DEFAULT_BUNDLE_DIR = ".pybundler"
 
 type Script struct {
-	Origin  string
-	Name    string
-	Command string
-	Module  string
+	Package  string
+	Function string
+	Origin   string
+	Name     string
+	Command  string
+	Module   string
 }
 
 type Project struct {
-	Name       string            `toml:"name"`
-	Version    string            `toml:"version"`
-	Scripts    map[string]string `toml:"scripts"`
-	GuiScripts map[string]string `toml:"gui-scripts"`
+	Name        string                       `toml:"name"`
+	Version     string                       `toml:"version"`
+	Scripts     map[string]string            `toml:"scripts"`
+	GuiScripts  map[string]string            `toml:"gui-scripts"`
+	EntryPoints map[string]map[string]string `toml:"entry-points"`
 }
 
 type PyProject struct {
 	Project Project `toml:"project"`
 }
 
+type ScriptCollection struct {
+	Scripts     []*Script
+	GuiScripts  []*Script
+	EntryPoints map[string][]*Script
+}
+
 type BundleOptions struct {
 	Path      string
 	Output    string
 	PyProject *PyProject
-	Scripts   []*Script
+	Scripts   *ScriptCollection
 }
 
 func NewBundleOptions(path string, output string) (*BundleOptions, error) {
@@ -85,12 +94,26 @@ func NewScript(name string, entrypoint string, origin string) (*Script, error) {
 	nn := strings.TrimSpace(name)
 	cmd := fmt.Sprintf("import %s; %s.%s()", imp, imp, fun)
 	script := &Script{
-		Origin:  origin,
-		Name:    nn,
-		Command: cmd,
-		Module:  strings.ReplaceAll(nn, "-", "_"),
+		Package:  strings.ReplaceAll(origin, "-", "_"),
+		Function: toPascalCase(name),
+		Origin:   origin,
+		Name:     nn,
+		Command:  cmd,
+		Module:   strings.ReplaceAll(nn, "-", "_"),
 	}
 	return script, nil
+}
+
+func toPascalCase(s string) string {
+	s = strings.ReplaceAll(s, "_", "-")
+	s = strings.ReplaceAll(s, " ", "-")
+	parts := strings.Split(s, "-")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(part[:1]) + part[1:]
+		}
+	}
+	return strings.Join(parts, "")
 }
 
 func makePathAbsolute(p string) string {
@@ -138,8 +161,27 @@ func decodePyproject(p string) (*PyProject, error) {
 	return &pyproject, nil
 }
 
-func collectScripts(pyproject PyProject) ([]*Script, error) {
-	scripts := make([]*Script, 0)
+func collectScripts(pyproject PyProject) (*ScriptCollection, error) {
+	sc := ScriptCollection{
+		Scripts:     make([]*Script, 0),
+		GuiScripts:  make([]*Script, 0),
+		EntryPoints: make(map[string][]*Script),
+	}
+	for k := range pyproject.Project.EntryPoints {
+		sc.EntryPoints[k] = make([]*Script, 0)
+	}
+	for name, group := range pyproject.Project.EntryPoints {
+		for k, v := range group {
+			s, err := NewScript(k, v, "entry-points")
+			if err != nil {
+				return nil, fmt.Errorf("error creating entry point '%s': %v", k, err)
+			}
+			if s == nil {
+				return nil, fmt.Errorf("entry point '%s' is nil", k)
+			}
+			sc.EntryPoints[name] = append(sc.EntryPoints[name], s)
+		}
+	}
 	for k, v := range pyproject.Project.Scripts {
 		s, err := NewScript(k, v, "scripts")
 		if err != nil {
@@ -148,7 +190,7 @@ func collectScripts(pyproject PyProject) ([]*Script, error) {
 		if s == nil {
 			return nil, fmt.Errorf("script '%s' is nil", k)
 		}
-		scripts = append(scripts, s)
+		sc.Scripts = append(sc.Scripts, s)
 	}
 	for k, v := range pyproject.Project.GuiScripts {
 		s, err := NewScript(k, v, "gui-scripts")
@@ -158,8 +200,13 @@ func collectScripts(pyproject PyProject) ([]*Script, error) {
 		if s == nil {
 			return nil, fmt.Errorf("gui script '%s' is nil", k)
 		}
-		scripts = append(scripts, s)
+		sc.GuiScripts = append(sc.GuiScripts, s)
 	}
+
+	return &sc, nil
+}
+
+func removeDuplicateScripts(scripts []*Script) ([]*Script, error) {
 	scriptKeys := make(map[string][]*Script)
 	for _, s := range scripts {
 		scriptKeys[s.Name] = make([]*Script, 0)

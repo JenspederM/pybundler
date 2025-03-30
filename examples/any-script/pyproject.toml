@@ -13,6 +13,9 @@ any-script = "any_script:main"
 [project.gui-scripts]
 any-script-gui = "any_script.gui:main"
 
+[project.entry-points."any_script"]
+any-script-entry = "any_script.gui:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

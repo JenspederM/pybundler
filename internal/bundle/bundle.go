@@ -28,7 +28,7 @@ func Run(bo *BundleOptions, verbose bool) error {
 	cobra.CheckErr(err)
 	err = SaveTemplate("generate.go.tmpl", filepath.Join(bo.Output, "generate/main.go"), data)
 	cobra.CheckErr(err)
-	err = createScripts(bo, data)
+	err = createScripts(bo)
 	cobra.CheckErr(err)
 
 	_, err = RunCmd(bo.Output, verbose, "go", "mod", "tidy")
@@ -48,20 +48,38 @@ func Run(bo *BundleOptions, verbose bool) error {
 	return nil
 }
 
-func createScripts(bo *BundleOptions, data interface{}) error {
-	if len(bo.Scripts) > 1 {
-		err := SaveTemplate("root-with-commands.go.tmpl", filepath.Join(bo.Output, "cmd/root.go"), data)
+func createScripts(bo *BundleOptions) error {
+	if len(bo.Scripts.Scripts) > 0 && len(bo.Scripts.GuiScripts) > 0 {
+		allSripts := append(bo.Scripts.Scripts, bo.Scripts.GuiScripts...)
+		err := SaveTemplate("root-with-commands.go.tmpl", filepath.Join(bo.Output, "cmd/root.go"), map[string]interface{}{
+			"Name":    bo.PyProject.Project.Name,
+			"Version": bo.PyProject.Project.Version,
+			"Path":    bo.Path,
+			"Scripts": allSripts,
+		})
 		if err != nil {
 			return fmt.Errorf("creating root command template: %v", err)
 		}
-		for _, script := range bo.Scripts {
-			err = SaveTemplate("command.go.tmpl", filepath.Join(bo.Output, "cmd", script.Name+".go"), script)
+		for _, script := range allSripts {
+			err = SaveTemplate("command.go.tmpl", filepath.Join(bo.Output, "internal", script.Package, script.Name+".go"), map[string]interface{}{
+				"Package": strings.ReplaceAll(script.Origin, "-", "_"),
+				"Name":    bo.PyProject.Project.Name,
+				"Version": bo.PyProject.Project.Version,
+				"Path":    bo.Path,
+				"Script":  script,
+			})
 			if err != nil {
 				return fmt.Errorf("creating command template: %v", err)
 			}
 		}
 	} else {
-		err := SaveTemplate("root.go.tmpl", filepath.Join(bo.Output, "cmd/root.go"), data)
+		allSripts := append(bo.Scripts.Scripts, bo.Scripts.GuiScripts...)
+		err := SaveTemplate("root.go.tmpl", filepath.Join(bo.Output, "cmd/root.go"), map[string]interface{}{
+			"Name":    bo.PyProject.Project.Name,
+			"Version": bo.PyProject.Project.Version,
+			"Path":    bo.Path,
+			"Scripts": allSripts,
+		})
 		if err != nil {
 			return fmt.Errorf("creating root template: %v", err)
 		}

@@ -5,7 +5,7 @@ import (
 )
 
 func main() {
-	err := pip.CreateEmbeddedPipPackagesForKnownPlatforms("requirements.txt", "./data/")
+	err := pip.CreateEmbeddedPipPackagesForKnownPlatforms("requirements.txt", "./internal/data/")
 	if err != nil {
 		panic(err)
 	}
