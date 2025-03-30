@@ -6,7 +6,8 @@ This tool is particularly useful for distributing Python applications as standal
 
 Each entry point will become a separate command in the final binary, allowing you to run different parts of your application with ease. 
 
-> Note: If you only have a single entry point, this will be the root command of the binary.
+> [!Note]
+> If you only have a single entry point, this will be the root command of the binary.
 
 ## Installation
 To install `PyBundler`, you need to have Go installed on your system. You can install it using the following command:
