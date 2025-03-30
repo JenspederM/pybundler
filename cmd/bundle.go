@@ -27,8 +27,7 @@ func BundleCmd() *cobra.Command {
 
 		bo, err := bundle.NewBundleOptions(path, output)
 		cobra.CheckErr(err)
-		log.Info("Bundle options: ", bo)
-
+		log.Infof("Creating bundle for %s at %s", bo.Path, bo.Output)
 		if _, err := os.Stat(bo.Output); err == nil {
 			if cmd.Flag("overwrite").Value.String() == "false" {
 				fmt.Printf("File %s already exists. Use --overwrite to overwrite.\n", fmt.Sprintf("%s/%s", bo.Output, "main.go"))
@@ -39,7 +38,6 @@ func BundleCmd() *cobra.Command {
 			err = os.MkdirAll(bo.Output, os.ModePerm)
 			cobra.CheckErr(err)
 		}
-
 		err = bundle.Run(bo)
 		if err != nil {
 			cobra.CheckErr(err)

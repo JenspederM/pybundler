@@ -12,10 +12,17 @@ import (
 func Run(bo *BundleOptions) error {
 	name := bo.PyProject.Project.Name
 	version := bo.PyProject.Project.Version
+	modules := make([]string, 0)
+	for _, script := range bo.Scripts {
+		modules = append(modules, script.Module)
+	}
+
 	data := map[string]interface{}{
 		"Name":    name,
 		"Version": version,
 		"Path":    bo.Path,
+		"Modules": modules,
+		"Scripts": bo.Scripts,
 	}
 
 	_, err := RunCmd(bo.Output, "go", "mod", "init", name)

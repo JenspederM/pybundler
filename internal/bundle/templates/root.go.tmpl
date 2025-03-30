@@ -18,34 +18,11 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:                "{{ .Name }}",
-	DisableFlagParsing: true,
-	Run: func(cmd *cobra.Command, args []string) {
-		tmpDir := os.TempDir()
-
-		ep, err := python.NewEmbeddedPythonWithTmpDir(filepath.Join(tmpDir, "{{ .Name }}"), true)
-		if err != nil {
-			panic(err)
-		}
-
-		requirements, err := embed_util.NewEmbeddedFilesWithTmpDir(data.Data, tmpDir+"{{ .Name }}-libs", true)
-		if err != nil {
-			panic(err)
-		}
-
-		ep.AddPythonPath(requirements.GetExtractedPath())
-		pyArgs := []string{"-c", "import {{ .Name }}; {{ .Name }}.main()"}
-		pyArgs = append(pyArgs, args...)
-		pyCmd, err := ep.PythonCmd(pyArgs...)
-		if err != nil {
-			log.Fatalf("failed to create python command: %v", err)
-		}
-		pyCmd.Stdout = os.Stdout
-		pyCmd.Stderr = os.Stderr
-		err = pyCmd.Run()
-		if err != nil {
-			log.Fatalf("failed to run python command: %v", err)
-		}
-	},
+	Short:              "A brief description of your application",
+	Long:               `A longer description that spans multiple lines and likely contains examples and usage of using your application. For example:\n\nCobra is a CLI library for Go that empowers applications.\nThis application is a tool to generate the needed files\n\n`,
+	// Uncomment the following line if your bare application
+	// has an action associated with it:
+	// Run: func(cmd *cobra.Command, args []string) { },
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -66,4 +43,41 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
+	{{ range  .Modules }}
+		rootCmd.AddCommand({{ . }})
+	{{ end }}
 }
+
+{{ range .Scripts }}
+var {{ .Module }} = &cobra.Command{
+	Use:                "{{ .Name }}",
+	DisableFlagParsing: true,
+	Run: func(cmd *cobra.Command, args []string) {
+		tmpDir := os.TempDir()
+
+		ep, err := python.NewEmbeddedPythonWithTmpDir(filepath.Join(tmpDir, "{{ .Name }}"), true)
+		if err != nil {
+			panic(err)
+		}
+
+		requirements, err := embed_util.NewEmbeddedFilesWithTmpDir(data.Data, tmpDir+"{{ .Name }}-libs", true)
+		if err != nil {
+			panic(err)
+		}
+
+		ep.AddPythonPath(requirements.GetExtractedPath())
+		pyArgs := []string{"-c", "{{ .Command }}"}
+		pyArgs = append(pyArgs, args...)
+		pyCmd, err := ep.PythonCmd(pyArgs...)
+		if err != nil {
+			log.Fatalf("failed to create python command: %v", err)
+		}
+		pyCmd.Stdout = os.Stdout
+		pyCmd.Stderr = os.Stderr
+		err = pyCmd.Run()
+		if err != nil {
+			log.Fatalf("failed to run python command: %v", err)
+		}
+	},
+}
+{{ end }}
