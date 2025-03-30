@@ -15,7 +15,7 @@ import (
 //go:embed templates
 var templates embed.FS
 
-func SaveTemplate(template string, output string, data map[string]interface{}) error {
+func SaveTemplate(template string, output string, data interface{}) error {
 	parent := filepath.Dir(output)
 	if _, err := os.Stat(parent); err != nil {
 		if os.IsNotExist(err) {
