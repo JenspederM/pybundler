@@ -19,7 +19,7 @@ func BundleCmd() *cobra.Command {
 	cmd.Long = `Bundle a Python project into a single executable file.`
 
 	cmd.Flags().StringP("path", "p", ".", "Path to the Python project")
-	cmd.Flags().StringP("output", "o", "dist", "Output directory for the bundle")
+	cmd.Flags().StringP("output", "o", "", "Output directory for the bundle")
 	cmd.Flags().BoolP("overwrite", "w", false, "Overwrite existing files")
 	cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
 

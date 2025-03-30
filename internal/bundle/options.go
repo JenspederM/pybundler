@@ -42,16 +42,6 @@ func NewBundleOptions(path string, output string) (*BundleOptions, error) {
 	if strings.TrimSpace(output) == "." {
 		output = ""
 	}
-	if strings.TrimSpace(output) == "" {
-		output = "dist"
-	}
-
-	output = makePathAbsolute(output)
-
-	err := os.MkdirAll(output, os.ModePerm)
-	if err != nil {
-		return nil, fmt.Errorf("creating output directory: %v", err)
-	}
 
 	pyproject, err := decodePyproject(path)
 	if err != nil {
@@ -61,6 +51,18 @@ func NewBundleOptions(path string, output string) (*BundleOptions, error) {
 	scripts, err := collectScripts(*pyproject)
 	if err != nil {
 		return nil, fmt.Errorf("error collecting scripts: %v", err)
+	}
+
+	if strings.TrimSpace(output) == "" {
+		output = filepath.Join(".pybundler", pyproject.Project.Name)
+	}
+
+	output = makePathAbsolute(output)
+
+	err = os.MkdirAll(output, os.ModePerm)
+
+	if err != nil {
+		return nil, fmt.Errorf("creating output directory: %v", err)
 	}
 
 	return &BundleOptions{
