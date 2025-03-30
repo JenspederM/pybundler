@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const DEFAULT_BUNDLE_DIR = ".pybundler"
+
 type Script struct {
 	Origin  string
 	Name    string
@@ -54,7 +56,7 @@ func NewBundleOptions(path string, output string) (*BundleOptions, error) {
 	}
 
 	if strings.TrimSpace(output) == "" {
-		output = filepath.Join(".pybundler", pyproject.Project.Name)
+		output = filepath.Join(DEFAULT_BUNDLE_DIR, pyproject.Project.Name)
 	}
 
 	output = makePathAbsolute(output)
