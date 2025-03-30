@@ -1,7 +1,11 @@
-package {{ .Script.Package }}
+{{ if eq .Module "root" -}}
+package cmd
+{{ else }}
+package {{ .Module }}
+{{ end -}}
 
 import (
-	"{{ .Name }}/internal/data"
+	"{{ .AppName }}/internal/data"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,24 +15,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var {{ .Script.Function }} = &cobra.Command{
-	Use:                "{{ .Script.Name }}",
+var {{ .CmdVarName }} = &cobra.Command{
+	Use:                "{{ .CmdUse }}",
 	DisableFlagParsing: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		tmpDir := os.TempDir()
 
-		ep, err := python.NewEmbeddedPythonWithTmpDir(filepath.Join(tmpDir, "{{ .Script.Name }}"), true)
+		ep, err := python.NewEmbeddedPythonWithTmpDir(filepath.Join(tmpDir, "{{ .CmdUse }}"), true)
 		if err != nil {
 			panic(err)
 		}
 
-		requirements, err := embed_util.NewEmbeddedFilesWithTmpDir(data.Data, tmpDir+"{{ .Script.Name }}-libs", true)
+		requirements, err := embed_util.NewEmbeddedFilesWithTmpDir(data.Data, tmpDir+"{{ .CmdUse }}-libs", true)
 		if err != nil {
 			panic(err)
 		}
 
 		ep.AddPythonPath(requirements.GetExtractedPath())
-		pyArgs := []string{"-c", "{{ .Script.Command }}"}
+		pyArgs := []string{"-c", "{{ .Cmd }}"}
 		pyArgs = append(pyArgs, args...)
 		pyCmd, err := ep.PythonCmd(pyArgs...)
 		if err != nil {
@@ -41,4 +45,11 @@ var {{ .Script.Function }} = &cobra.Command{
 			log.Fatalf("failed to run python command: %v", err)
 		}
 	},
+}
+
+func Execute() {
+	err := {{ .CmdVarName }}.Execute()
+	if err != nil {
+		os.Exit(1)
+	}
 }

@@ -5,17 +5,46 @@ package cmd
 
 import (
 	"os"
-
-	{{ range  .Scripts -}}
-		"{{ $.Name }}/internal/{{ .Package }}"
-	{{ end }}
+	{{ range  .Commands }}
+	"{{ .AppName }}/internal/{{ .Module }}"
+	{{- end }}
 
 	"github.com/spf13/cobra"
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:                "{{ .Name }}",
+	Use:                "{{ .AppName }}",
+	{{ if lt (len .Commands) 1 -}}
+	DisableFlagParsing: true,
+	Run: func(cmd *cobra.Command, args []string) {
+		tmpDir := os.TempDir()
+
+		ep, err := python.NewEmbeddedPythonWithTmpDir(filepath.Join(tmpDir, "{{ .AppName }}"), true)
+		if err != nil {
+			panic(err)
+		}
+
+		requirements, err := embed_util.NewEmbeddedFilesWithTmpDir(data.Data, tmpDir+"{{ .AppName }}-libs", true)
+		if err != nil {
+			panic(err)
+		}
+
+		ep.AddPythonPath(requirements.GetExtractedPath())
+		pyArgs := []string{"-c", "{{ .Command }}"}
+		pyArgs = append(pyArgs, args...)
+		pyCmd, err := ep.PythonCmd(pyArgs...)
+		if err != nil {
+			log.Fatalf("failed to create python command: %v", err)
+		}
+		pyCmd.Stdout = os.Stdout
+		pyCmd.Stderr = os.Stderr
+		err = pyCmd.Run()
+		if err != nil {
+			log.Fatalf("failed to run python command: %v", err)
+		}
+	},
+	{{ end }}
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -34,7 +63,7 @@ func init() {
 	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.pybundler.yaml)")
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	{{ range  .Scripts -}}
-		rootCmd.AddCommand({{ .Package}}.{{ .Function }})
+	{{ range  .Commands -}}
+		rootCmd.AddCommand({{ .Module }}.{{ .CmdVarName }})
 	{{ end }}
 }

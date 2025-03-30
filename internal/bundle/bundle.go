@@ -38,9 +38,13 @@ func Run(bo *BundleOptions, verbose bool) error {
 	requirements, err := getRequirements(bo.Path, name, version, verbose)
 	cobra.CheckErr(err)
 	err = os.WriteFile(filepath.Join(bo.Output, "requirements.txt"), requirements, 0644)
-
 	cobra.CheckErr(err)
+
 	_, err = RunCmd(bo.Output, verbose, "go", "generate", "./...")
+	cobra.CheckErr(err)
+	_, err = RunCmd(bo.Output, verbose, "go", "fmt", "./...")
+	cobra.CheckErr(err)
+	_, err = RunCmd(bo.Output, verbose, "go", "mod", "tidy")
 	cobra.CheckErr(err)
 	_, err = RunCmd(bo.Output, verbose, "go", "build", "-o", "main")
 	cobra.CheckErr(err)
@@ -49,41 +53,47 @@ func Run(bo *BundleOptions, verbose bool) error {
 }
 
 func createScripts(bo *BundleOptions) error {
-	if len(bo.Scripts.Scripts) > 0 && len(bo.Scripts.GuiScripts) > 0 {
-		allSripts := append(bo.Scripts.Scripts, bo.Scripts.GuiScripts...)
-		err := SaveTemplate("root-with-commands.go.tmpl", filepath.Join(bo.Output, "cmd/root.go"), map[string]interface{}{
-			"Name":    bo.PyProject.Project.Name,
-			"Version": bo.PyProject.Project.Version,
-			"Path":    bo.Path,
-			"Scripts": allSripts,
-		})
-		if err != nil {
-			return fmt.Errorf("creating root command template: %v", err)
-		}
-		for _, script := range allSripts {
-			err = SaveTemplate("command.go.tmpl", filepath.Join(bo.Output, "internal", script.Package, script.Name+".go"), map[string]interface{}{
-				"Package": strings.ReplaceAll(script.Origin, "-", "_"),
-				"Name":    bo.PyProject.Project.Name,
-				"Version": bo.PyProject.Project.Version,
-				"Path":    bo.Path,
-				"Script":  script,
-			})
-			if err != nil {
-				return fmt.Errorf("creating command template: %v", err)
+	allSripts := append(bo.Scripts.Scripts, bo.Scripts.GuiScripts...)
+	for k, scripts := range bo.Scripts.EntryPoints {
+		for _, script := range scripts {
+			if script.Origin == "" {
+				script.Origin = k
 			}
-		}
-	} else {
-		allSripts := append(bo.Scripts.Scripts, bo.Scripts.GuiScripts...)
-		err := SaveTemplate("root.go.tmpl", filepath.Join(bo.Output, "cmd/root.go"), map[string]interface{}{
-			"Name":    bo.PyProject.Project.Name,
-			"Version": bo.PyProject.Project.Version,
-			"Path":    bo.Path,
-			"Scripts": allSripts,
-		})
-		if err != nil {
-			return fmt.Errorf("creating root template: %v", err)
+			allSripts = append(allSripts, script)
 		}
 	}
+	commands := make([]*Command, 0)
+	for _, script := range allSripts {
+		c, err := NewCommand(bo.PyProject.Project.Name, script.Name, script.Command, script.Origin)
+		if err != nil {
+			return fmt.Errorf("creating command: %v", err)
+		}
+		commands = append(commands, c)
+	}
+	if len(commands) == 1 {
+		c := commands[0]
+		c.Module = "root"
+		err := c.Render(filepath.Join(bo.Output, "cmd", "root.go"))
+		if err != nil {
+			return fmt.Errorf("rendering command: %v", err)
+		}
+		return nil
+	}
+	for _, cmd := range commands {
+		err := cmd.Render(filepath.Join(bo.Output, "internal", cmd.Module, fmt.Sprintf("%s.go", cmd.Module)))
+		if err != nil {
+			return fmt.Errorf("rendering command: %v", err)
+		}
+	}
+	rootCmd, err := NewRootCommand(bo.PyProject.Project.Name, commands...)
+	if err != nil {
+		return fmt.Errorf("creating root command: %v", err)
+	}
+	err = rootCmd.Render(filepath.Join(bo.Output, "cmd", "root.go"))
+	if err != nil {
+		return fmt.Errorf("rendering root command: %v", err)
+	}
+
 	return nil
 }
 
