@@ -1,8 +1,4 @@
-{{ if eq .Module "root" -}}
-package cmd
-{{ else }}
 package {{ .Module }}
-{{ end -}}
 
 import (
 	"{{ .AppName }}/internal/data"
@@ -45,11 +41,4 @@ var {{ .CmdVarName }} = &cobra.Command{
 			log.Fatalf("failed to run python command: %v", err)
 		}
 	},
-}
-
-func Execute() {
-	err := {{ .CmdVarName }}.Execute()
-	if err != nil {
-		os.Exit(1)
-	}
 }

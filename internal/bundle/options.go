@@ -12,15 +12,6 @@ import (
 
 const DEFAULT_BUNDLE_DIR = ".pybundler"
 
-type Script struct {
-	Package  string
-	Function string
-	Origin   string
-	Name     string
-	Command  string
-	Module   string
-}
-
 type Project struct {
 	Name        string                       `toml:"name"`
 	Version     string                       `toml:"version"`
@@ -33,17 +24,17 @@ type PyProject struct {
 	Project Project `toml:"project"`
 }
 
-type ScriptCollection struct {
-	Scripts     []*Script
-	GuiScripts  []*Script
-	EntryPoints map[string][]*Script
+type CommandCollection struct {
+	Scripts     []*Command
+	GuiScripts  []*Command
+	EntryPoints []*Command
 }
 
 type BundleOptions struct {
 	Path      string
 	Output    string
 	PyProject *PyProject
-	Scripts   *ScriptCollection
+	Commands  *CommandCollection
 }
 
 func NewBundleOptions(path string, output string) (*BundleOptions, error) {
@@ -80,28 +71,8 @@ func NewBundleOptions(path string, output string) (*BundleOptions, error) {
 		Path:      path,
 		Output:    output,
 		PyProject: pyproject,
-		Scripts:   scripts,
+		Commands:  scripts,
 	}, nil
-}
-
-func NewScript(name string, entrypoint string, origin string) (*Script, error) {
-	_vals := strings.SplitN(entrypoint, ":", 2)
-	if len(_vals) < 2 {
-		return nil, fmt.Errorf("invalid script format: %s", entrypoint)
-	}
-	imp := _vals[0]
-	fun := _vals[1]
-	nn := strings.TrimSpace(name)
-	cmd := fmt.Sprintf("import %s; %s.%s()", imp, imp, fun)
-	script := &Script{
-		Package:  strings.ReplaceAll(origin, "-", "_"),
-		Function: toPascalCase(name),
-		Origin:   origin,
-		Name:     nn,
-		Command:  cmd,
-		Module:   strings.ReplaceAll(nn, "-", "_"),
-	}
-	return script, nil
 }
 
 func toPascalCase(s string) string {
@@ -161,29 +132,44 @@ func decodePyproject(p string) (*PyProject, error) {
 	return &pyproject, nil
 }
 
-func collectScripts(pyproject PyProject) (*ScriptCollection, error) {
-	sc := ScriptCollection{
-		Scripts:     make([]*Script, 0),
-		GuiScripts:  make([]*Script, 0),
-		EntryPoints: make(map[string][]*Script),
+func collectScripts(pyproject PyProject) (*CommandCollection, error) {
+	project_name := pyproject.Project.Name
+	sc := CommandCollection{
+		Scripts:     make([]*Command, 0),
+		GuiScripts:  make([]*Command, 0),
+		EntryPoints: make([]*Command, 0),
 	}
-	for k := range pyproject.Project.EntryPoints {
-		sc.EntryPoints[k] = make([]*Script, 0)
-	}
-	for name, group := range pyproject.Project.EntryPoints {
+
+	for group_name, group := range pyproject.Project.EntryPoints {
+		if group_name == "console_scripts" || group_name == "gui_scripts" {
+			continue
+		}
+		entry_cmds := make([]*Command, 0)
 		for k, v := range group {
-			s, err := NewScript(k, v, "entry-points")
+			s, err := NewCommand(project_name, k, v, group_name)
 			if err != nil {
 				return nil, fmt.Errorf("error creating entry point '%s': %v", k, err)
 			}
 			if s == nil {
 				return nil, fmt.Errorf("entry point '%s' is nil", k)
 			}
-			sc.EntryPoints[name] = append(sc.EntryPoints[name], s)
+			entry_cmds = append(entry_cmds, s)
 		}
+		if len(entry_cmds) == 0 {
+			return nil, fmt.Errorf("no entry points found in group '%s'", group_name)
+		}
+		group_root, err := NewRootCommand(project_name, group_name, entry_cmds...)
+		if err != nil {
+			return nil, fmt.Errorf("error creating entry point group '%s': %v", group_name, err)
+		}
+		if group_root == nil {
+			return nil, fmt.Errorf("entry point group '%s' is nil", group_name)
+		}
+		sc.EntryPoints = append(sc.EntryPoints, group_root)
 	}
+
 	for k, v := range pyproject.Project.Scripts {
-		s, err := NewScript(k, v, "scripts")
+		s, err := NewCommand(project_name, k, v, "scripts")
 		if err != nil {
 			return nil, fmt.Errorf("error creating script '%s': %v", k, err)
 		}
@@ -192,8 +178,9 @@ func collectScripts(pyproject PyProject) (*ScriptCollection, error) {
 		}
 		sc.Scripts = append(sc.Scripts, s)
 	}
+
 	for k, v := range pyproject.Project.GuiScripts {
-		s, err := NewScript(k, v, "gui-scripts")
+		s, err := NewCommand(project_name, k, v, "gui-scripts")
 		if err != nil {
 			return nil, fmt.Errorf("error creating gui script '%s': %v", k, err)
 		}

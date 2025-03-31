@@ -1,0 +1,23 @@
+package {{ .Module }}
+
+import (
+	"github.com/spf13/cobra"
+  {{ range  .Commands }}
+	"{{ .AppName }}/internal/{{ $.Import }}/{{ .Import }}"
+	{{- end }}
+)
+
+var {{ .CmdVarName }} = &cobra.Command{
+	Use: "{{ .CmdUse }}",
+}
+
+func init() {
+	{{ range  .Commands -}}
+  {{ if eq $.Module .Module -}}
+		// Command {{ .CmdUse }} is part of the {{ $.Module }} module
+		{{ $.CmdVarName }}.AddCommand({{ .CmdVarName }})
+  {{ else }}
+    {{ $.CmdVarName }}.AddCommand({{ .Module }}.{{ .CmdVarName }})
+  {{ end -}}
+	{{ end }}
+}

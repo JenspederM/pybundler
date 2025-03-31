@@ -13,8 +13,11 @@ any-script = "any_script:main"
 [project.gui-scripts]
 any-script-gui = "any_script.gui:main"
 
-[project.entry-points."any_script"]
-any-script-entry = "any_script.entry:main"
+[project.entry-points."my-entry"]
+any-script = "any_script.entry:main"
+
+[project.entry-points."other"]
+any-script = "any_script.entry_other:main"
 
 [build-system]
 requires = ["hatchling"]
