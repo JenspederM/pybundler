@@ -88,28 +88,21 @@ func (bo *BundleOptions) renderProject() error {
 	err = SaveTemplate("generate.go.tmpl", filepath.Join(bo.Output, "generate/main.go"), data)
 	cobra.CheckErr(err)
 	commands := make([]*Command, 0)
-	if len(bo.Commands.Scripts) > 0 {
-		root, err := RenderModule("scripts", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.Scripts...)
-		cobra.CheckErr(err)
-		commands = append(commands, root)
-	}
-	if len(bo.Commands.GuiScripts) > 0 {
-		root, err := RenderModule("gui", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.GuiScripts...)
-		cobra.CheckErr(err)
-		commands = append(commands, root)
-	}
-	if len(bo.Commands.EntryPoints) > 0 {
-		root, err := RenderModule("entrypoint", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.EntryPoints...)
-		if err != nil {
-			return fmt.Errorf("rendering entrypoint command group: %v", err)
-		}
-		for _, cmd := range bo.Commands.EntryPoints {
-			_, err := RenderModule(cmd.Module, filepath.Join(bo.Output, "internal", "entrypoint"), *bo, root, cmd.Commands...)
-			if err != nil {
-				return fmt.Errorf("rendering entrypoint command: %v", err)
+	kinds := []string{"scripts", "gui", "entrypoint"}
+	for _, kind := range kinds {
+		if len(bo.Commands.Scripts) > 0 {
+			root, err := RenderModule(kind, filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.Scripts...)
+			cobra.CheckErr(err)
+			if kind == "entrypoint" {
+				for _, cmd := range bo.Commands.EntryPoints {
+					_, err := RenderModule(cmd.Module, filepath.Join(bo.Output, "internal", "entrypoint"), *bo, root, cmd.Commands...)
+					if err != nil {
+						return fmt.Errorf("rendering entrypoint command: %v", err)
+					}
+				}
 			}
+			commands = append(commands, root)
 		}
-		commands = append(commands, root)
 	}
 	rootCmd, err := NewRootCommand(bo.PyProject.Project.Name, "root", commands...)
 	if err != nil {
