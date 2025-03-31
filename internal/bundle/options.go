@@ -205,26 +205,3 @@ func collectScripts(pyproject PyProject) (*ScriptCollection, error) {
 
 	return &sc, nil
 }
-
-func removeDuplicateScripts(scripts []*Script) ([]*Script, error) {
-	scriptKeys := make(map[string][]*Script)
-	for _, s := range scripts {
-		scriptKeys[s.Name] = make([]*Script, 0)
-	}
-	for _, s := range scripts {
-		scriptKeys[s.Name] = append(scriptKeys[s.Name], s)
-	}
-	for k, v := range scriptKeys {
-		if len(v) > 1 {
-			occurrences := make([]string, 0)
-			for _, s := range v {
-				occurrences = append(occurrences, fmt.Sprintf("[project.%s]", s.Origin))
-			}
-			return nil, fmt.Errorf("script name '%s' found in multiple pyproject sections: %s", k, strings.Join(occurrences, ", "))
-		}
-	}
-	if len(scripts) == 0 {
-		return nil, fmt.Errorf("no scripts found in pyproject.toml")
-	}
-	return scripts, nil
-}
