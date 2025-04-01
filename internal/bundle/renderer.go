@@ -12,7 +12,7 @@ func RenderProject(bo *BundleOptions, errs ...error) error {
 	if bo == nil {
 		return fmt.Errorf("unable to render project: bundle options is nil")
 	}
-	cmdMod := "root"
+	cmdMod := "cmd"
 	rootCmd, err := NewRootCommand(bo.PyProject.Project.Name, cmdMod)
 	if err != nil {
 		return fmt.Errorf("creating root command: %v", err)
@@ -131,9 +131,6 @@ func RenderCmd(c *Command, output string) error {
 	}
 	log.Infof("Rendering command '%s' at %s", c.Module, output)
 	if c.Module == "cmd" {
-		if len(c.Commands) > 0 {
-			return fmt.Errorf("cmd module cannot have subcommands")
-		}
 		c.CmdVarName = "RootCmd"
 		err := SaveTemplate("root-with-commands.go.tmpl", output, c)
 		if err != nil {
