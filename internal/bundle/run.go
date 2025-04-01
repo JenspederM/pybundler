@@ -9,6 +9,7 @@ import (
 )
 
 func Run(bo *BundleOptions, verbose bool) error {
+
 	_, err := RunCmd(bo.Output, verbose, "go", "mod", "init", bo.PyProject.Project.Name)
 	cobra.CheckErr(err)
 	err = RenderProject(bo)
@@ -18,7 +19,9 @@ func Run(bo *BundleOptions, verbose bool) error {
 
 	_, err = RunCmd(bo.Path, verbose, "uv", "build", "--wheel", "-o", bo.Output)
 	cobra.CheckErr(err)
-	requirements, err := bo.GetRequirements(verbose)
+	pkgReqs, err := RunCmd(bo.Path, verbose, "uv", "export", "--no-emit-project", "--no-dev", "--no-hashes")
+	cobra.CheckErr(err)
+	requirements, err := bo.GetRequirements(pkgReqs)
 	cobra.CheckErr(err)
 	err = os.WriteFile(filepath.Join(bo.Output, "requirements.txt"), requirements, 0644)
 	cobra.CheckErr(err)
