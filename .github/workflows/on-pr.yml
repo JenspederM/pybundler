@@ -93,5 +93,5 @@ jobs:
           tag_name: snapshot
           token: ${{ secrets.GITHUB_TOKEN }}
           files: |
-            dist/databricks_cli_*.zip
-            dist/databricks_cli_*.tar.gz
+            dist/pybundler_cli_*.zip
+            dist/pybundler_cli_*.tar.gz
