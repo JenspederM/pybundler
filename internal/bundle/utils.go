@@ -52,3 +52,15 @@ func RandomStringWithCharset(length int, charset string) string {
 func RandomString(length int) string {
 	return RandomStringWithCharset(length, charset)
 }
+
+func ToPascalCase(s string) string {
+	s = strings.ReplaceAll(s, "_", "-")
+	s = strings.ReplaceAll(s, " ", "-")
+	parts := strings.Split(s, "-")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(part[:1]) + part[1:]
+		}
+	}
+	return strings.Join(parts, "")
+}

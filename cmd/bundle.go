@@ -29,7 +29,7 @@ func BundleCmd() *cobra.Command {
 		overwrite := cmd.Flag("overwrite").Value.String()
 		verbose := cmd.Flag("verbose").Value.String()
 
-		bo, err := bundle.NewBundleOptions(path, output)
+		bo, err := bundle.New(path, output)
 		cobra.CheckErr(err)
 		log.Infof("Creating bundle for %s at %s", bo.Path, bo.Output)
 		if _, err := os.Stat(bo.Output); err == nil {

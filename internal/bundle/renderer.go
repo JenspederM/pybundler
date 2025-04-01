@@ -56,26 +56,26 @@ func RenderProject(bo *BundleOptions, errs ...error) error {
 		}
 	}
 	if len(bo.Commands.Scripts) > 0 {
-		root, err := RenderGroup("scripts", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.Scripts...)
+		root, err := RenderGroup(*bo, "scripts", filepath.Join(bo.Output, "internal"), nil, bo.Commands.Scripts...)
 		if err != nil {
 			return fmt.Errorf("rendering script command group: %v", err)
 		}
 		commands = append(commands, root)
 	}
 	if len(bo.Commands.GuiScripts) > 0 {
-		root, err := RenderGroup("gui", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.GuiScripts...)
+		root, err := RenderGroup(*bo, "gui", filepath.Join(bo.Output, "internal"), nil, bo.Commands.GuiScripts...)
 		if err != nil {
 			return fmt.Errorf("rendering gui command group: %v", err)
 		}
 		commands = append(commands, root)
 	}
 	if len(bo.Commands.EntryPoints) > 0 {
-		root, err := RenderGroup("entrypoint", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.EntryPoints...)
+		root, err := RenderGroup(*bo, "entrypoint", filepath.Join(bo.Output, "internal"), nil, bo.Commands.EntryPoints...)
 		if err != nil {
 			return fmt.Errorf("rendering entrypoint command group: %v", err)
 		}
 		for _, cmd := range bo.Commands.EntryPoints {
-			_, err := RenderGroup(cmd.Module, filepath.Join(bo.Output, "internal", "entrypoint"), *bo, root, cmd.Commands...)
+			_, err := RenderGroup(*bo, cmd.Module, filepath.Join(bo.Output, "internal", "entrypoint"), root, cmd.Commands...)
 			if err != nil {
 				return fmt.Errorf("rendering entrypoint command: %v", err)
 			}
@@ -86,7 +86,7 @@ func RenderProject(bo *BundleOptions, errs ...error) error {
 	return RenderCmd(rootCmd, filepath.Join(bo.Output, cmdMod, "root.go"))
 }
 
-func RenderGroup(module, output string, options BundleOptions, parent *Command, commands ...*Command) (*Command, error) {
+func RenderGroup(options BundleOptions, module, output string, parent *Command, commands ...*Command) (*Command, error) {
 	path := filepath.Join(output, module)
 	err := os.MkdirAll(path, os.ModePerm)
 	if err != nil {
@@ -100,7 +100,7 @@ func RenderGroup(module, output string, options BundleOptions, parent *Command, 
 
 	root := &Command{
 		AppName:    options.PyProject.Project.Name,
-		CmdVarName: fmt.Sprintf("%sCmd", toPascalCase(module)),
+		CmdVarName: fmt.Sprintf("%sCmd", ToPascalCase(module)),
 		CmdUse:     module,
 		Module:     module,
 		Import:     imp,
@@ -137,7 +137,7 @@ func RenderCmd(c *Command, output string) error {
 			return fmt.Errorf("rendering root command: %v", err)
 		}
 	} else {
-		c.CmdVarName = toPascalCase(c.CmdVarName)
+		c.CmdVarName = ToPascalCase(c.CmdVarName)
 		err := SaveTemplate("command.go.tmpl", output, c)
 		if err != nil {
 			return fmt.Errorf("rendering command: %v", err)
