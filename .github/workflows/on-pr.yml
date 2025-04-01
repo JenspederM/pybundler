@@ -1,0 +1,97 @@
+name: release-snapshot
+
+on:
+  push:
+    branches:
+      - "main"
+      - "demo-*"
+      - "bugbash-*"
+
+  # Confirm that snapshot builds work if this file is modified.
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - ".github/workflows/release-snapshot.yml"
+
+  workflow_dispatch:
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Go
+        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
+        with:
+          go-version-file: go.mod
+
+          # The default cache key for this action considers only the `go.sum` file.
+          # We include .goreleaser.yaml here to differentiate from the cache used by the push action
+          # that runs unit tests. This job produces and uses a different cache.
+          cache-dependency-path: |
+            go.sum
+            .goreleaser.yaml
+
+      - name: Hide snapshot tag to outsmart GoReleaser
+        run: git tag -d snapshot || true
+
+      - name: Run GoReleaser
+        id: releaser
+        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
+        with:
+          version: ~> v2
+          args: release --snapshot --skip docker
+
+      - name: Upload macOS binaries
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: cli_darwin_snapshot
+          path: |
+            dist/*_darwin_*/
+
+      - name: Upload Linux binaries
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: cli_linux_snapshot
+          path: |
+            dist/*_linux_*/
+
+      - name: Upload Windows binaries
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: cli_windows_snapshot
+          path: |
+            dist/*_windows_*/
+
+      - name: Update snapshot tag
+
+        # Snapshot release may only be updated for commits to the main branch.
+        if: github.ref == 'refs/heads/main'
+
+        run: |
+          git tag snapshot
+          git push origin snapshot --force
+
+      - name: Update snapshot release
+
+        # Snapshot release may only be updated for commits to the main branch.
+        if: github.ref == 'refs/heads/main'
+
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
+        with:
+          name: Snapshot
+          prerelease: true
+          tag_name: snapshot
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            dist/databricks_cli_*.zip
+            dist/databricks_cli_*.tar.gz
