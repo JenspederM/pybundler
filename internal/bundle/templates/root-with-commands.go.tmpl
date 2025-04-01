@@ -4,11 +4,21 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	{{ if lt (len .Commands) 1 -}}
+	"log"
 	"os"
+	"path/filepath"
+	"typer-cli/internal/data"
+
+	"github.com/kluctl/go-embed-python/embed_util"
+	"github.com/kluctl/go-embed-python/python"
+	{{ else }}
+	"os"
+	
 	{{ range  .Commands }}
 	"{{ .AppName }}/internal/{{ .Module }}"
 	{{- end }}
-
+	{{- end }}
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +41,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		ep.AddPythonPath(requirements.GetExtractedPath())
-		pyArgs := []string{"-c", "{{ .Command }}"}
+		pyArgs := []string{"-c", "{{ .Cmd }}"}
 		pyArgs = append(pyArgs, args...)
 		pyCmd, err := ep.PythonCmd(pyArgs...)
 		if err != nil {

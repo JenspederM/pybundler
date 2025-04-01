@@ -17,20 +17,20 @@ func Run(bo *BundleOptions, verbose bool) error {
 
 	_, err := RunCmd(bo.Output, verbose, "go", "mod", "init", name)
 	cobra.CheckErr(err)
-	err = bo.renderProject()
+	err = RenderProject(bo)
 	cobra.CheckErr(err)
-
 	_, err = RunCmd(bo.Output, verbose, "go", "mod", "tidy")
 	cobra.CheckErr(err)
+
 	_, err = RunCmd(bo.Path, verbose, "uv", "build", "--wheel", "-o", bo.Output)
 	cobra.CheckErr(err)
 	requirements, err := getRequirements(bo.Path, name, version, verbose)
 	cobra.CheckErr(err)
 	err = os.WriteFile(filepath.Join(bo.Output, "requirements.txt"), requirements, 0644)
 	cobra.CheckErr(err)
-
 	_, err = RunCmd(bo.Output, verbose, "go", "generate", "./...")
 	cobra.CheckErr(err)
+
 	_, err = RunCmd(bo.Output, verbose, "go", "fmt", "./...")
 	cobra.CheckErr(err)
 	_, err = RunCmd(bo.Output, verbose, "go", "mod", "tidy")

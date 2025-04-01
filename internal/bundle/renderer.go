@@ -2,91 +2,29 @@ package bundle
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/cloudflare/cfssl/log"
-	"github.com/spf13/cobra"
 )
 
-type Command struct {
-	Origin     string
-	AppName    string
-	Module     string
-	Import     string
-	CmdVarName string
-	CmdUse     string
-	Cmd        string
-	Commands   []*Command
-}
-
-func NewCommand(appName, name, value, origin string, commands ...*Command) (*Command, error) {
-	slog.Info("Creating command input", "appName", appName, "name", name, "value", value, "origin", origin)
-	parts := strings.SplitN(value, ":", 2)
-	if len(parts) != 2 {
-		slog.Error("Invalid script format", "appName", appName, "name", name, "value", value, "origin", origin)
-		return nil, fmt.Errorf("invalid script format: %s", value)
+func RenderProject(bo *BundleOptions, errs ...error) error {
+	if bo == nil {
+		return fmt.Errorf("unable to render project: bundle options is nil")
 	}
-	import_module := strings.TrimSpace(parts[0])
-	method := strings.TrimSpace(parts[1])
-	method = strings.TrimPrefix(method, import_module+".")
-	cmd := fmt.Sprintf("import %s; %s.%s()", import_module, import_module, method)
-
-	parts = strings.Split(import_module, ".")
-	module := parts[len(parts)-1]
-
-	cmdUse := strings.TrimSpace(name)
-	cmdUse = strings.ReplaceAll(cmdUse, " ", "-")
-	cmdUse = strings.ReplaceAll(cmdUse, "_", "-")
-	cmdVarName := strings.ReplaceAll(cmdUse, "-", "_")
-	slog.Info("Creating command output",
-		"AppName", appName,
-		"Origin", origin,
-		"Module", module+RandomString(5),
-		"CmdVarName", toPascalCase(cmdVarName),
-		"CmdUse", cmdUse,
-		"Cmd", cmd,
-		"Import", fmt.Sprintf("%s/cmd/%s", appName, cmdVarName),
-		"Commands", commands,
-	)
-	m := module + RandomString(5)
-	return &Command{
-		AppName:    appName,
-		Module:     m,
-		Import:     m,
-		CmdVarName: toPascalCase(cmdVarName),
-		CmdUse:     cmdUse,
-		Cmd:        cmd,
-		Commands:   commands,
-	}, nil
-}
-
-func NewRootCommand(appName, module string, commands ...*Command) (*Command, error) {
-	root := &Command{
-		AppName:    appName,
-		Module:     strings.ReplaceAll(module, "-", "_"),
-		Import:     strings.ReplaceAll(module, "-", "_"),
-		CmdVarName: fmt.Sprintf("%sCmd", toPascalCase(module)),
-		CmdUse:     module,
-		Cmd:        "",
-		Commands:   commands,
+	cmdMod := "root"
+	rootCmd, err := NewRootCommand(bo.PyProject.Project.Name, cmdMod)
+	if err != nil {
+		return fmt.Errorf("creating root command: %v", err)
 	}
-	return root, nil
-}
-
-func (bo *BundleOptions) renderProject() error {
-	data := map[string]interface{}{
-		"Name":    bo.PyProject.Project.Name,
-		"Version": bo.PyProject.Project.Version,
-		"Path":    bo.Path,
-		"Scripts": bo.Commands,
+	err = SaveTemplate("generate.go.tmpl", filepath.Join(bo.Output, "generate/main.go"), rootCmd)
+	if err != nil {
+		return fmt.Errorf("rendering generate.go: %v", err)
 	}
-	err := SaveTemplate("main.go.tmpl", filepath.Join(bo.Output, "main.go"), data)
-	cobra.CheckErr(err)
-	err = SaveTemplate("generate.go.tmpl", filepath.Join(bo.Output, "generate/main.go"), data)
-	cobra.CheckErr(err)
+	err = SaveTemplate("main.go.tmpl", filepath.Join(bo.Output, "main.go"), rootCmd)
+	if err != nil {
+		return fmt.Errorf("rendering main.go: %v", err)
+	}
 	commands := make([]*Command, 0)
 	only_one := len(bo.Commands.Scripts) + len(bo.Commands.GuiScripts) + len(bo.Commands.EntryPoints)
 	if only_one == 0 {
@@ -95,53 +33,60 @@ func (bo *BundleOptions) renderProject() error {
 	if only_one == 1 {
 		switch {
 		case len(bo.Commands.Scripts) == 1:
-			bo.Commands.Scripts[0].Module = "cmd"
-			bo.Commands.Scripts[0].Render(filepath.Join(bo.Output, "cmd", "root.go"))
+			fmt.Printf("Only one script found, creating a single command\n")
+			bo.Commands.Scripts[0].Module = cmdMod
+			err := RenderCmd(bo.Commands.Scripts[0], filepath.Join(bo.Output, cmdMod, "root.go"))
+			if err != nil {
+				return fmt.Errorf("rendering script command: %v", err)
+			}
 			return nil
 		case len(bo.Commands.GuiScripts) == 1:
-			bo.Commands.GuiScripts[0].Module = "cmd"
-			bo.Commands.GuiScripts[0].Render(filepath.Join(bo.Output, "cmd", "root.go"))
+			bo.Commands.GuiScripts[0].Module = cmdMod
+			err := RenderCmd(bo.Commands.GuiScripts[0], filepath.Join(bo.Output, cmdMod, "root.go"))
+			if err != nil {
+				return fmt.Errorf("rendering gui command: %v", err)
+			}
+			return nil
 		case len(bo.Commands.EntryPoints) == 1:
 			fmt.Print("Only one entrypoint found, creating a single command\n")
+			log.Fatalf("Not implemented yet")
 		default:
 			fmt.Print("Only one command found, creating a single command\n")
+			log.Fatalf("Not implemented yet")
 		}
 	}
 	if len(bo.Commands.Scripts) > 0 {
-		root, err := RenderModule("scripts", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.Scripts...)
-		cobra.CheckErr(err)
+		root, err := RenderGroup("scripts", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.Scripts...)
+		if err != nil {
+			return fmt.Errorf("rendering script command group: %v", err)
+		}
 		commands = append(commands, root)
 	}
 	if len(bo.Commands.GuiScripts) > 0 {
-		root, err := RenderModule("gui", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.GuiScripts...)
-		cobra.CheckErr(err)
+		root, err := RenderGroup("gui", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.GuiScripts...)
+		if err != nil {
+			return fmt.Errorf("rendering gui command group: %v", err)
+		}
 		commands = append(commands, root)
 	}
 	if len(bo.Commands.EntryPoints) > 0 {
-		root, err := RenderModule("entrypoint", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.EntryPoints...)
+		root, err := RenderGroup("entrypoint", filepath.Join(bo.Output, "internal"), *bo, nil, bo.Commands.EntryPoints...)
 		if err != nil {
 			return fmt.Errorf("rendering entrypoint command group: %v", err)
 		}
 		for _, cmd := range bo.Commands.EntryPoints {
-			_, err := RenderModule(cmd.Module, filepath.Join(bo.Output, "internal", "entrypoint"), *bo, root, cmd.Commands...)
+			_, err := RenderGroup(cmd.Module, filepath.Join(bo.Output, "internal", "entrypoint"), *bo, root, cmd.Commands...)
 			if err != nil {
 				return fmt.Errorf("rendering entrypoint command: %v", err)
 			}
 		}
 		commands = append(commands, root)
 	}
-	rootCmd, err := NewRootCommand(bo.PyProject.Project.Name, "root", commands...)
-	if err != nil {
-		return fmt.Errorf("creating root command: %v", err)
-	}
-	err = rootCmd.Render(filepath.Join(bo.Output, "cmd", "root.go"))
-	if err != nil {
-		return fmt.Errorf("rendering root command: %v", err)
-	}
-	return nil
+	rootCmd.Commands = commands
+	return RenderCmd(rootCmd, filepath.Join(bo.Output, cmdMod, "root.go"))
 }
 
-func RenderModule(module, output string, options BundleOptions, parent *Command, commands ...*Command) (*Command, error) {
+func RenderGroup(module, output string, options BundleOptions, parent *Command, commands ...*Command) (*Command, error) {
 	path := filepath.Join(output, module)
 	err := os.MkdirAll(path, os.ModePerm)
 	if err != nil {
@@ -167,7 +112,7 @@ func RenderModule(module, output string, options BundleOptions, parent *Command,
 		}
 		log.Infof("Rendering command module '%s' at %s", cmd.Module, path)
 		fp := filepath.Join(path, cmd.Module, fmt.Sprintf("%s.go", cmd.CmdVarName))
-		err := cmd.Render(fp)
+		err := RenderCmd(cmd, fp)
 		if err != nil {
 			return nil, fmt.Errorf("rendering command: %v", err)
 		}
@@ -180,9 +125,15 @@ func RenderModule(module, output string, options BundleOptions, parent *Command,
 	return root, nil
 }
 
-func (c *Command) Render(output string) error {
+func RenderCmd(c *Command, output string) error {
+	if c == nil {
+		return fmt.Errorf("unable to render command: command is nil")
+	}
 	log.Infof("Rendering command '%s' at %s", c.Module, output)
-	if c.Module == "cmd" && len(c.Commands) > 0 {
+	if c.Module == "cmd" {
+		if len(c.Commands) > 0 {
+			return fmt.Errorf("cmd module cannot have subcommands")
+		}
 		c.CmdVarName = "RootCmd"
 		err := SaveTemplate("root-with-commands.go.tmpl", output, c)
 		if err != nil {

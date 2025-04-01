@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -38,7 +37,7 @@ func BundleCmd() *cobra.Command {
 			cobra.CheckErr(err)
 			if !isEmpty && overwrite == "false" {
 				fp := filepath.Join(bo.Output, "main.go")
-				fmt.Printf("File %s already exists. Use --overwrite to overwrite.\n", fp)
+				log.Fatalf("File %s already exists. Use --overwrite to overwrite.\n", fp)
 				return
 			}
 			err = os.RemoveAll(bo.Output)
