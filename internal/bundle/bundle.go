@@ -57,13 +57,11 @@ func New(path string, output string) (*BundleOptions, error) {
 		PyProject: pyproject,
 		Commands:  scripts,
 	}, nil
+
 }
 
-func (bo *BundleOptions) GetRequirements(verbose bool) ([]byte, error) {
-	pkgReqs, err := RunCmd(bo.Path, verbose, "uv", "export", "--no-emit-project", "--no-dev", "--no-hashes")
-	if err != nil {
-		return nil, err
-	}
+func (bo *BundleOptions) GetRequirements(pkgReqs []byte) ([]byte, error) {
+
 	log.Infof("Package requirements: %s", pkgReqs)
 	whl := fmt.Sprintf("%s-%s-py3-none-any.whl", strings.ReplaceAll(bo.PyProject.Project.Name, "-", "_"), bo.PyProject.Project.Version)
 	reqLines := bytes.Split(pkgReqs, []byte("\n"))
