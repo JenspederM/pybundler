@@ -1,0 +1,21 @@
+FROM golang:1.23 AS build-stage
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . ./
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o /{{ .AppName }}
+
+FROM build-stage AS run-test-stage
+RUN go test -v ./...
+
+FROM gcr.io/distroless/python3-debian12 AS build-release-stage
+
+WORKDIR /
+COPY --from=build-stage /{{ .AppName }} /{{ .AppName }}
+# EXPOSE 8080
+
+ENTRYPOINT ["/{{ .AppName }}"]
