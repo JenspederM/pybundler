@@ -17,6 +17,14 @@ func Run(bo *BundleOptions, verbose bool) error {
 	_, err = RunCmd(bo.Output, verbose, "go", "mod", "tidy")
 	cobra.CheckErr(err)
 
+	// _, err = py.Run(bo.Path, verbose, "pip", "install", "--upgrade", "uv")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// _, err = py.Run(bo.Path, verbose, "uv", "build", "--wheel", "-o", bo.Output)
+	// if err != nil {
+	// 	panic(err)
+	// }
 	_, err = RunCmd(bo.Path, verbose, "uv", "build", "--wheel", "-o", bo.Output)
 	cobra.CheckErr(err)
 	pkgReqs, err := RunCmd(bo.Path, verbose, "uv", "export", "--no-emit-project", "--no-dev", "--no-hashes")
