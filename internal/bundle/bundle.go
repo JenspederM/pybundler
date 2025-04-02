@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/cloudflare/cfssl/log"
+	"github.com/spf13/cobra"
 )
 
 type BundleOptions struct {
@@ -17,7 +18,7 @@ type BundleOptions struct {
 	Commands  *CommandCollection
 }
 
-func New(path string, output string) (*BundleOptions, error) {
+func New(path string, output string, overwrite bool) (*BundleOptions, error) {
 	if strings.TrimSpace(path) == "" {
 		path = "."
 	}
@@ -46,17 +47,35 @@ func New(path string, output string) (*BundleOptions, error) {
 		}
 	}
 
+	bundle := &BundleOptions{
+		Path:      path,
+		Output:    output,
+		PyProject: pyproject,
+		Commands:  scripts,
+	}
+
+	log.Infof("Creating bundle\n%Source: %s\nTarget: %s", bundle.Path, bundle.Output)
+
 	err = os.MkdirAll(output, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("creating output directory: %v", err)
 	}
 
-	return &BundleOptions{
-		Path:      path,
-		Output:    output,
-		PyProject: pyproject,
-		Commands:  scripts,
-	}, nil
+	if _, err := os.Stat(bundle.Output); err == nil {
+		isEmpty, err := IsEmpty(bundle.Output)
+		cobra.CheckErr(err)
+		if !isEmpty && !overwrite {
+			fp := filepath.Join(bundle.Output, "main.go")
+			log.Fatalf("File %s already exists. Use --overwrite to overwrite.\n", fp)
+			return nil, fmt.Errorf("output directory %s already exists", bundle.Output)
+		}
+		err = os.RemoveAll(bundle.Output)
+		cobra.CheckErr(err)
+		err = os.MkdirAll(bundle.Output, os.ModePerm)
+		cobra.CheckErr(err)
+	}
+
+	return bundle, nil
 
 }
 
@@ -73,4 +92,34 @@ func (bo *BundleOptions) GetRequirements(pkgReqs []byte) ([]byte, error) {
 	}
 	// reqs = append(reqs, []byte(whl))
 	return bytes.Join(reqs, []byte("\n")), nil
+}
+
+func (bo *BundleOptions) Run(verbose bool) error {
+
+	_, err := RunCmd(bo.Output, verbose, "go", "mod", "init", bo.PyProject.Project.Name)
+	cobra.CheckErr(err)
+	err = RenderProject(bo)
+	cobra.CheckErr(err)
+	_, err = RunCmd(bo.Output, verbose, "go", "mod", "tidy")
+	cobra.CheckErr(err)
+
+	_, err = RunCmd(bo.Path, verbose, "uv", "build", "--wheel", "-o", bo.Output)
+	cobra.CheckErr(err)
+	pkgReqs, err := RunCmd(bo.Path, verbose, "uv", "export", "--no-emit-project", "--no-dev", "--no-hashes")
+	cobra.CheckErr(err)
+	requirements, err := bo.GetRequirements(pkgReqs)
+	cobra.CheckErr(err)
+	err = os.WriteFile(filepath.Join(bo.Output, "requirements.txt"), requirements, 0644)
+	cobra.CheckErr(err)
+	_, err = RunCmd(bo.Output, verbose, "go", "generate", "./...")
+	cobra.CheckErr(err)
+
+	_, err = RunCmd(bo.Output, verbose, "go", "fmt", "./...")
+	cobra.CheckErr(err)
+	_, err = RunCmd(bo.Output, verbose, "go", "mod", "tidy")
+	cobra.CheckErr(err)
+	_, err = RunCmd(bo.Output, verbose, "go", "build", "-o", "main")
+	cobra.CheckErr(err)
+	log.Info("Bundle created successfully.")
+	return nil
 }
