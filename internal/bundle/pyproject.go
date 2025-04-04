@@ -22,7 +22,7 @@ type PyProject struct {
 	Project ProjectSection `toml:"project"`
 }
 
-func DecodePyproject(p string) (*PyProject, error) {
+func NewPyProject(p string) (*PyProject, error) {
 	if _, err := os.Stat(filepath.Join(p, "pyproject.toml")); err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("pyproject.toml not found in %s", p)

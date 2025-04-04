@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const EXAMPLES_DIR = "../..examples"
+
 type BundleOptions struct {
 	Path      string
 	Output    string
@@ -26,7 +28,7 @@ func New(path string, output string, overwrite bool) (*BundleOptions, error) {
 		output = ""
 	}
 
-	pyproject, err := DecodePyproject(path)
+	pyproject, err := NewPyProject(path)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding pyproject.toml: %v", err)
 	}
@@ -80,7 +82,6 @@ func New(path string, output string, overwrite bool) (*BundleOptions, error) {
 }
 
 func (bo *BundleOptions) GetRequirements(pkgReqs []byte) ([]byte, error) {
-
 	log.Infof("Package requirements: %s", pkgReqs)
 	whl := fmt.Sprintf("%s-%s-py3-none-any.whl", strings.ReplaceAll(bo.PyProject.Project.Name, "-", "_"), bo.PyProject.Project.Version)
 	reqLines := bytes.Split(pkgReqs, []byte("\n"))
@@ -95,7 +96,6 @@ func (bo *BundleOptions) GetRequirements(pkgReqs []byte) ([]byte, error) {
 }
 
 func (bo *BundleOptions) Run(verbose bool) error {
-
 	_, err := RunCmd(bo.Output, verbose, "go", "mod", "init", bo.PyProject.Project.Name)
 	cobra.CheckErr(err)
 	err = RenderProject(bo)
