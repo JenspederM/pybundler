@@ -4,26 +4,26 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
 
 	"math/rand"
 	"time"
-
-	"github.com/cloudflare/cfssl/log"
 )
 
 func RunCmd(cwd string, verbose bool, args ...string) ([]byte, error) {
 	if strings.TrimSpace(cwd) == "" {
 		cwd = "."
 	}
-	log.Infof("Running command: %s\n", strings.Join(args, " "))
+
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Dir = cwd
 	var stdBuffer bytes.Buffer
 	mw := io.MultiWriter(os.Stdout, &stdBuffer)
 	if verbose {
+		slog.Info("Running command", "args", strings.Join(args, " "))
 		cmd.Stdout = mw
 		cmd.Stderr = mw
 	}
@@ -31,7 +31,9 @@ func RunCmd(cwd string, verbose bool, args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("running command: %v", err)
 	}
 	res := stdBuffer.String()
-	log.Infof("Command output:\n%s", string(res))
+	if verbose {
+		slog.Info("Command output", "output", res)
+	}
 	return []byte(res), nil
 }
 

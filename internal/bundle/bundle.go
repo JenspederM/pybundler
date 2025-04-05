@@ -3,11 +3,11 @@ package bundle
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/cloudflare/cfssl/log"
 	"github.com/spf13/cobra"
 )
 
@@ -56,8 +56,6 @@ func New(path string, output string, overwrite bool) (*BundleOptions, error) {
 		Commands:  scripts,
 	}
 
-	log.Infof("Creating bundle\n%Source: %s\nTarget: %s", bundle.Path, bundle.Output)
-
 	err = os.MkdirAll(output, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("creating output directory: %v", err)
@@ -68,7 +66,7 @@ func New(path string, output string, overwrite bool) (*BundleOptions, error) {
 		cobra.CheckErr(err)
 		if !isEmpty && !overwrite {
 			fp := filepath.Join(bundle.Output, "main.go")
-			log.Fatalf("File %s already exists. Use --overwrite to overwrite.\n", fp)
+			slog.Info(fmt.Sprintf("File %s already exists. Use --overwrite to overwrite.", fp))
 			return nil, fmt.Errorf("output directory %s already exists", bundle.Output)
 		}
 		err = os.RemoveAll(bundle.Output)
@@ -77,22 +75,8 @@ func New(path string, output string, overwrite bool) (*BundleOptions, error) {
 		cobra.CheckErr(err)
 	}
 
+	slog.Info("Creating bundle:", "source", bundle.Path, "target", bundle.Output)
 	return bundle, nil
-
-}
-
-func (bo *BundleOptions) GetRequirements(pkgReqs []byte) ([]byte, error) {
-	log.Infof("Package requirements: %s", pkgReqs)
-	whl := fmt.Sprintf("%s-%s-py3-none-any.whl", strings.ReplaceAll(bo.PyProject.Project.Name, "-", "_"), bo.PyProject.Project.Version)
-	reqLines := bytes.Split(pkgReqs, []byte("\n"))
-	reqs := [][]byte{[]byte(whl)}
-	for _, line := range reqLines {
-		if !bytes.HasPrefix(line, []byte("#")) && bytes.Contains(line, []byte("==")) {
-			reqs = append(reqs, line)
-		}
-	}
-	// reqs = append(reqs, []byte(whl))
-	return bytes.Join(reqs, []byte("\n")), nil
 }
 
 func (bo *BundleOptions) Run(verbose bool) error {
@@ -107,7 +91,7 @@ func (bo *BundleOptions) Run(verbose bool) error {
 	cobra.CheckErr(err)
 	pkgReqs, err := RunCmd(bo.Path, verbose, "uv", "export", "--no-emit-project", "--no-dev", "--no-hashes")
 	cobra.CheckErr(err)
-	requirements, err := bo.GetRequirements(pkgReqs)
+	requirements, err := bo.parseRequirements(pkgReqs)
 	cobra.CheckErr(err)
 	err = os.WriteFile(filepath.Join(bo.Output, "requirements.txt"), requirements, 0644)
 	cobra.CheckErr(err)
@@ -120,6 +104,19 @@ func (bo *BundleOptions) Run(verbose bool) error {
 	cobra.CheckErr(err)
 	_, err = RunCmd(bo.Output, verbose, "go", "build", "-o", "main")
 	cobra.CheckErr(err)
-	log.Info("Bundle created successfully.")
+	slog.Info("Bundle created successfully.")
 	return nil
+}
+
+func (bo *BundleOptions) parseRequirements(pkgReqs []byte) ([]byte, error) {
+	slog.Info("Getting module requirements")
+	whl := fmt.Sprintf("%s-%s-py3-none-any.whl", strings.ReplaceAll(bo.PyProject.Project.Name, "-", "_"), bo.PyProject.Project.Version)
+	reqLines := bytes.Split(pkgReqs, []byte("\n"))
+	reqs := [][]byte{[]byte(whl)}
+	for _, line := range reqLines {
+		if !bytes.HasPrefix(line, []byte("#")) && bytes.Contains(line, []byte("==")) {
+			reqs = append(reqs, line)
+		}
+	}
+	return bytes.Join(reqs, []byte("\n")), nil
 }

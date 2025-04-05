@@ -2,10 +2,9 @@ package bundle
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
-
-	"github.com/cloudflare/cfssl/log"
 )
 
 func RenderProject(bo *BundleOptions, errs ...error) error {
@@ -35,9 +34,9 @@ func RenderProject(bo *BundleOptions, errs ...error) error {
 		return fmt.Errorf("no commands found")
 	}
 	if only_one == 1 {
+		slog.Info("Only one command found, creating a single command")
 		switch {
 		case len(bo.Commands.Scripts) == 1:
-			fmt.Printf("Only one script found, creating a single command\n")
 			bo.Commands.Scripts[0].Module = cmdMod
 			err := RenderCmd(bo.Commands.Scripts[0], filepath.Join(bo.Output, cmdMod, "root.go"))
 			if err != nil {
@@ -52,11 +51,10 @@ func RenderProject(bo *BundleOptions, errs ...error) error {
 			}
 			return nil
 		case len(bo.Commands.EntryPoints) == 1:
-			fmt.Print("Only one entrypoint found, creating a single command\n")
-			log.Fatalf("Not implemented yet")
+			slog.Info("Only one entrypoint found, creating a single command")
+			return fmt.Errorf("Not implemented. rendering entrypoint command: %v", err)
 		default:
-			fmt.Print("Only one command found, creating a single command\n")
-			log.Fatalf("Not implemented yet")
+			return fmt.Errorf("no commands found")
 		}
 	}
 	if len(bo.Commands.Scripts) > 0 {
@@ -114,7 +112,7 @@ func RenderGroup(options BundleOptions, module, output string, parent *Command, 
 		if cmd.Cmd == "" {
 			continue
 		}
-		log.Infof("Rendering command module '%s' at %s", cmd.Module, path)
+		slog.Debug("Rendering command module", "module", cmd.Module, "path", path)
 		fp := filepath.Join(path, cmd.Module, fmt.Sprintf("%s.go", cmd.CmdVarName))
 		err := RenderCmd(cmd, fp)
 		if err != nil {
@@ -133,7 +131,7 @@ func RenderCmd(c *Command, output string) error {
 	if c == nil {
 		return fmt.Errorf("unable to render command: command is nil")
 	}
-	log.Infof("Rendering command '%s' at %s", c.Module, output)
+	slog.Debug("Rendering command", "module", c.Module, "path", output)
 	if c.Module == "cmd" {
 		c.CmdVarName = "RootCmd"
 		err := SaveTemplate("root-with-commands.go.tmpl", output, c)

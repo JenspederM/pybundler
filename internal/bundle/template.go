@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
-
-	"github.com/cloudflare/cfssl/log"
 )
 
 //go:embed templates
@@ -24,7 +23,7 @@ func SaveTemplate(template string, output string, data interface{}) error {
 			return fmt.Errorf("creating output directory: %v", err)
 		}
 	}
-	log.Infof("Saving template %s to %s", template, output)
+	slog.Debug("Saving template", "template", template, "output", output)
 	if strings.TrimSpace(output) == "." {
 		output = ""
 	}

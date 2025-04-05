@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"log/slog"
+
 	"github.com/jenspederm/pybundler/internal/bundle"
 	"github.com/spf13/cobra"
 )
@@ -23,6 +25,10 @@ func BundleCmd() *cobra.Command {
 		output := cmd.Flag("output").Value.String()
 		overwrite := cmd.Flag("overwrite").Value.String()
 		verbose := cmd.Flag("verbose").Value.String()
+
+		if verbose == "true" {
+			slog.SetLogLoggerLevel(slog.LevelDebug)
+		}
 
 		b, err := bundle.New(path, output, overwrite == "true")
 		cobra.CheckErr(err)

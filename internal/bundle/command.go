@@ -18,7 +18,7 @@ type Command struct {
 }
 
 func NewCommand(appName, name, value, origin string, commands ...*Command) (*Command, error) {
-	slog.Info("Creating command input", "appName", appName, "name", name, "value", value, "origin", origin)
+	slog.Debug("Creating command input", "appName", appName, "name", name, "value", value, "origin", origin)
 
 	parts := strings.SplitN(value, ":", 2)
 	if len(parts) != 2 {
@@ -37,7 +37,7 @@ func NewCommand(appName, name, value, origin string, commands ...*Command) (*Com
 	cmdVarName := strings.ReplaceAll(cmdUse, "-", "_")
 	m := module + RandomString(5)
 
-	slog.Info("Creating command output",
+	slog.Debug("Creating command output",
 		"AppName", appName,
 		"Origin", origin,
 		"Module", module+RandomString(5),
