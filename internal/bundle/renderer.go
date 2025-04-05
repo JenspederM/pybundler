@@ -25,6 +25,10 @@ func RenderProject(bo *BundleOptions, errs ...error) error {
 	if err != nil {
 		return fmt.Errorf("rendering main.go: %v", err)
 	}
+	err = SaveTemplate("dockerfile.tmpl", filepath.Join(bo.Output, "Dockerfile"), rootCmd)
+	if err != nil {
+		return fmt.Errorf("rendering Dockerfile: %v", err)
+	}
 	commands := make([]*Command, 0)
 	only_one := len(bo.Commands.Scripts) + len(bo.Commands.GuiScripts) + len(bo.Commands.EntryPoints)
 	if only_one == 0 {
