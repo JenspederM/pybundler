@@ -19,6 +19,7 @@ type Command struct {
 
 func NewCommand(appName, name, value, origin string, commands ...*Command) (*Command, error) {
 	slog.Info("Creating command input", "appName", appName, "name", name, "value", value, "origin", origin)
+
 	parts := strings.SplitN(value, ":", 2)
 	if len(parts) != 2 {
 		slog.Error("Invalid script format", "appName", appName, "name", name, "value", value, "origin", origin)
@@ -28,14 +29,14 @@ func NewCommand(appName, name, value, origin string, commands ...*Command) (*Com
 	method := strings.TrimSpace(parts[1])
 	method = strings.TrimPrefix(method, import_module+".")
 	cmd := fmt.Sprintf("import %s; %s.%s()", import_module, import_module, method)
-
 	parts = strings.Split(import_module, ".")
 	module := parts[len(parts)-1]
-
 	cmdUse := strings.TrimSpace(name)
 	cmdUse = strings.ReplaceAll(cmdUse, " ", "-")
 	cmdUse = strings.ReplaceAll(cmdUse, "_", "-")
 	cmdVarName := strings.ReplaceAll(cmdUse, "-", "_")
+	m := module + RandomString(5)
+
 	slog.Info("Creating command output",
 		"AppName", appName,
 		"Origin", origin,
@@ -46,7 +47,7 @@ func NewCommand(appName, name, value, origin string, commands ...*Command) (*Com
 		"Import", fmt.Sprintf("%s/cmd/%s", appName, cmdVarName),
 		"Commands", commands,
 	)
-	m := module + RandomString(5)
+
 	return &Command{
 		AppName:    appName,
 		Module:     m,
